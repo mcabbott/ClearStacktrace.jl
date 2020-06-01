@@ -1,7 +1,8 @@
 module ClearStacktrace
 
 
-const MODULECOLORS = [:light_blue, :light_yellow, :light_red, :light_green, :light_magenta, :light_cyan, :blue, :yellow, :red, :green, :magenta, :cyan]
+const MODULECOLORS = [:yellow, :green, :cyan, :blue, :magenta] |> reverse # colours in rainbow order (backwards), and don't outshine the function names
+# [:light_blue, :light_yellow, :light_red, :light_green, :light_magenta, :light_cyan, :blue, :yellow, :red, :green, :magenta, :cyan]
 
 const EXPAND_BASE_PATHS = Ref(true)
 const CONTRACT_USER_DIR = Ref(true)
@@ -38,7 +39,7 @@ function getfile(frame)
     if EXPAND_BASE_PATHS[]
         file = expandbasepath(file)
     end
-    if CONTRACT_USER_DIR[]  
+    if CONTRACT_USER_DIR[]
         file = replaceuserpath(file)
     end
     if REPLACE_BACKSLASHES[]
@@ -48,7 +49,12 @@ function getfile(frame)
     file
 end
 getfunc(frame) = string(frame.func)
-getmodule(frame) = try; string(frame.linfo.def.module) catch; "" end
+getmodule(frame) = try
+    mod = frame.linfo.def.module
+    string(mod)
+catch
+    ""
+end
 
 getsigtypes(frame) = try;  frame.linfo.specTypes.parameters[2:end] catch; "" end
 
@@ -104,17 +110,18 @@ function printtrace(io::IO, converted_stacktrace)
     ndigits = length(digits(n))
     length_numstr = ndigits + 2
 
-    uniquemodules = setdiff(unique(moduls), [""])
+    uniquemodules = setdiff(unique(moduls), ["Base", "Core", "REPL", ""]) # skip Base, Core
     modulecolors = Dict(u => c for (u, c) in
         Iterators.zip(uniquemodules, Iterators.cycle(MODULECOLORS)))
 
     for (i, (func, inlined, modul, file, line, stypes, args)) in enumerate(
             zip(funcs, inlineds, moduls, files, lines, sigtypes, arguments))
 
-        modulecolor = get(modulecolors, modul, :default)
+        # modulecolor = get(modulecolors, modul, :default)
+        modulecolor = get(modulecolors, modul, :light_black)
         print_frame(io, i, func, inlined, modul, file, line, stypes, args, length_numstr, modulecolor)
         println(io)
-        println(io)
+        # println(io) # don't skip a line
     end
 end
 
@@ -122,32 +129,53 @@ function print_frame(io, i, func, inlined, modul, file, line, stypes,
         args, length_numstr, modulecolor)
 
     # frame number
-    print(io, lpad("[" * string(i) * "]", length_numstr))
+    # print(io, lpad("[" * string(i) * "]", length_numstr))
+    printstyled(io, lpad("[" * string(i) * "]", length_numstr), bold=true) # bold numbers to make line starts more obvious
     print(io, " ")
-    
+
     # function name
-    printstyled(io, func, bold = true)
-   
+    if func != "top-level scope"
+        printstyled(io, func, bold = true)
+    else
+        print(io, "top-level scope") # not a function, not bold
+    end
+
+    if inlined # then don't try to print arguments
+        printstyled(io," [inlined]", color = :light_black)
+    elseif func == "top-level scope"
+    else
+
     # type signature
-    printstyled(io, "(", color = :light_black)
+    # printstyled(io, "(", color = :light_black)
+    printstyled(io, "(")
 
     i = 1
     for (stype, (varname, vartype)) in zip(stypes, args)
         if i > 1
-            printstyled(io, ", ", color = :light_black)
+            # printstyled(io, ", ", color = :light_black)
+            printstyled(io, ", ")
         end
-        printstyled(io, string(varname), color = :light_black, bold = true)
+        # printstyled(io, string(varname), color = :light_black, bold = true)
+        printstyled(io, string(varname))
         printstyled(io, "::")
-        printstyled(io, string(stype), color = :light_black)
+        # printstyled(io, string(stype), color = :light_black)
+        printstyled(io, string(stype.name))
+        if !isempty(stype.parameters) # print type only parameters in gray
+            printstyled(io, "{", join(stype.parameters, ","), "}", color = :light_black)
+        end
         i += 1
     end
 
-    printstyled(io, ")", color = :light_black)
+    # printstyled(io, ")", color = :light_black)
+    printstyled(io, ")")
+
+    end # if inlined
 
     println(io)
-    
+
     # @
     printstyled(io, " " ^ (length_numstr - 1) * "@ ", color = :light_black)
+    # printstyled(io, " " ^ (length_numstr - 2) * "@ ", color = :light_black) # not aligned
 
     # module
     if !isempty(modul)
@@ -156,7 +184,7 @@ function print_frame(io, i, func, inlined, modul, file, line, stypes,
     end
 
     # filepath
-    pathparts = splitpath(file)
+    pathparts = splitpath(normpath(file))
     for p in pathparts[1:end-1]
         printstyled(io, p * "/", color = :light_black)
     end
@@ -166,12 +194,12 @@ function print_frame(io, i, func, inlined, modul, file, line, stypes,
     print(io, "\033[90;4m$(pathparts[end] * ":" * string(line))\033[0m")
 
     # inlined
-    printstyled(io, inlined ? " [inlined]" : "", color = :light_black)
+    # printstyled(io, inlined ? " [inlined]" : "", color = :light_black) # moved up
 end
 
 
 @warn "Overloading Base.show_backtrace(io::IO, t::Vector) with custom version"
-function Base.show_backtrace(io::IO, t::Vector)
+function Base.show_backtrace(io::IO, t::Vector{Base.StackTraces.StackFrame})
 
     ### this part is copied from the original function
     resize!(Base.LAST_SHOWN_LINE_INFOS, 0)
