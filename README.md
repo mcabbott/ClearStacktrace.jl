@@ -33,3 +33,14 @@ This fork changes it to:
 Compare Base:
 
 ![](plot_base.png)
+
+### September tweak
+
+Now with argument names also dimmed. And a picture in VSCode's dark theme:
+
+<img src="sept.png" width=575 height=601 />
+
+Compared to what's currently merged into Julia 1.6- (which does not skip a line):
+
+<img src="master.png" width=575 height=606 />
+
