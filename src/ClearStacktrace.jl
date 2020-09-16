@@ -152,11 +152,12 @@ function print_frame(io, i, func, inlined, modul, file, line, stypes,
     i = 1
     for (stype, (varname, vartype)) in zip(stypes, args)
         if i > 1
-            # printstyled(io, ", ", color = :light_black)
-            printstyled(io, ", ")
+            printstyled(io, ", ", color = :light_black)
+            # printstyled(io, ", ")
         end
         # printstyled(io, string(varname), color = :light_black, bold = true)
-        printstyled(io, string(varname))
+        printstyled(io, string(varname), color = :light_black, bold = false)
+        # printstyled(io, string(varname))
         printstyled(io, "::")
         # printstyled(io, string(stype), color = :light_black)
         printstyled(io, string(stype.name))
